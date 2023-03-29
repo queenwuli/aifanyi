@@ -1,0 +1,1 @@
+rd /s /q  %appdata%\OneWorldDev\recipes\
