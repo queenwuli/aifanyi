@@ -1,0 +1,10 @@
+{
+  "id": "telegrama",
+  "name": "Telegram-a版",
+  "version": "3.4.4",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://web.telegram.org/a/",
+    "hasNotificationSound": true
+  }
+}
