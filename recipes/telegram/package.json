@@ -1,10 +1,10 @@
 {
   "id": "telegram",
-  "name": "Telegram",
-  "version": "3.3.4",
+  "name": "Telegram-k版",
+  "version": "3.4.4",
   "license": "MIT",
   "config": {
-    "serviceURL": "https://web.telegram.org/z/",
+    "serviceURL": "https://web.telegram.org/k/",
     "hasNotificationSound": true
   }
 }
