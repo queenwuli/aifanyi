@@ -25,7 +25,7 @@ module.exports = (Ferdium, settings) => {
 
   const sendBtn = () => {
     setTimeout(() => {
-      document.querySelector('button[title="发送消息"]').click();
+      document.querySelector('button[title="发送消息"]') && document.querySelector('button[title="发送消息"]').click();
     }, 500);
   };
 
@@ -45,10 +45,11 @@ module.exports = (Ferdium, settings) => {
   const classnameCfg = {
     ipt: '.public-DraftStyleDefault-block.public-DraftStyleDefault-ltr [data-text="true"]',
     sendBtn: "button[title='发送消息']",
-    main: '.rxCustomScroll.rxCustomScrollV.active',
+    main: '.rxCustomScroll.rxCustomScrollV',
     allMsg:
       "div[style='position: relative; display: flex; flex-direction: column; flex-grow: 0; flex-shrink: 0; overflow: hidden; align-items: stretch; padding-left: 11px; padding-right: 12px; padding-top: 9px;']",
     friendList: '.scrollViewport.scrollViewportV',
+    groupflagEl: "button[style='position: relative; display: flex; flex-direction: row; flex-grow: 0; flex-shrink: 1; overflow: hidden; align-items: stretch; justify-content: flex-start; app-region: no-drag; background-color: transparent; border-color: transparent; text-align: left; border-width: 0px; cursor: pointer; padding: 0px; border-style: solid;']"
   };
 
   const getMessages = () => {
@@ -98,7 +99,7 @@ module.exports = (Ferdium, settings) => {
     true,
   );
 
-  Ferdium.initLocalData();
+  Ferdium.initLocalData(settings.localReadData);
   Ferdium.initOneWorld(() => {
     console.log('ready to translation');
     setTimeout(() => {
@@ -119,7 +120,8 @@ module.exports = (Ferdium, settings) => {
       'keydown',
       event => {
         let key = event.key;
-        if (!oneworld.settingCfg.sendtranslation) return;
+        if (!oneworld.settingCfg.tranflag) return;
+        if (isGroup() && !oneworld.settingCfg.groupflag) return;
         if (key === 'Enter') {
           let msg = getIptSendMsg();
           msg = replaceAllHtml(msg);
@@ -139,6 +141,13 @@ module.exports = (Ferdium, settings) => {
 
   /**发送消息 */
   const handleSendMessage = async (documents, context) => {
+    if(!context || !context.trim()) {
+      const evt = document.createEvent('HTMLEvents');
+      evt.initEvent('input', true, true);
+      documents.dispatchEvent(evt);
+      sendBtn();
+      return
+    }
     const params = getResData(context, true, true);
     params.isSend = true;
     const res = await Ferdium.getTran(params, oneworld.token);
@@ -147,7 +156,7 @@ module.exports = (Ferdium, settings) => {
       return;
     }
     if (res.body.code === 500) {
-      documents.textContent = '字符余额不足，请充值';
+      documents.textContent = res.body.msg;
     } else if (res.body.code === 200 && res.body.data) {
       let result = res.body.data;
       result = result.replace(/</gi, '&lt;');
@@ -166,7 +175,7 @@ module.exports = (Ferdium, settings) => {
     data = data.replace(/<\/?[^>]+>/g, ''); // 过滤所有html
     data = data.replace(/&lt;/gi, '<'); // 过滤所有的&lt;
     data = data.replace(/&gt;/gi, '>'); // 过滤所有的&gt;
-    data = data.replace(/\s+/g, '\n'); // 过滤所有的空格
+    data = data.trim(); // 过滤所有的空格
     return data;
   };
 
@@ -201,56 +210,67 @@ module.exports = (Ferdium, settings) => {
       const msg = msgDiv.textContent;
       const check = msgDiv.parentNode.childElementCount === 1;
       const isOwn =
-        msgDiv.parentElement.parentElement.style.backgroundColor ===
-        'rgb(219, 241, 255)';
+        msgDiv.parentElement.parentElement.children[0].style.backgroundColor ===
+        'rgb(204, 247, 255)';
       if (check) {
-        if (
-          !oneworld.settingCfg.tranflag ||
-          (isGroup() && !oneworld.settingCfg.groupflag)
-        ) {
+        if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
+          if((isGroup() && oneworld.settingCfg.groupflag) || !isGroup()) {
+            insterDiv(msgDiv, 'autofanyi', '...', isOwn);
+            autoFanyi(msg, msgDiv, isOwn);
+          }else{
+            insterDiv(msgDiv, 'click-fanyi', '点击翻译', isOwn);
+            msgDiv.parentNode
+              .querySelector('.click-fanyi')
+              .addEventListener('click', e => clickFanyi(e, isOwn));
+          }
+        } else {
           insterDiv(msgDiv, 'click-fanyi', '点击翻译', isOwn);
           msgDiv.parentNode
             .querySelector('.click-fanyi')
             .addEventListener('click', e => clickFanyi(e, isOwn));
-        } else {
-          insterDiv(msgDiv, 'autofanyi', '...', isOwn);
-          autoFanyi(msg, msgDiv, isOwn);
         }
       }
     }
   };
 
   const autoFanyi = async (msg, msgDiv, isOwn) => {
-    let autoFanyi = msgDiv.parentNode.querySelector('.autofanyi');
+    // 自动翻译时隐藏点击翻译按钮
     let clickfanyi = msgDiv.parentNode.querySelector('.click-fanyi');
     if (clickfanyi) clickfanyi.style.display = 'none';
-    if (!oneworld.settingCfg.tranflag && autoFanyi) autoFanyi.textContent = '';
-    if (!isNumber(msg)) {
-      let params = getResData(msg, isOwn);
-      let res = await Ferdium.getTran(params, oneworld.token);
-      if (!res.err && res.body.code == 200) {
-        //显示翻译内容
-        autoFanyi.textContent = '';
-        autoFanyi.textContent = res.body.data;
-      } else if (res.body.code == 500) {
-        autoFanyi.textContent = '您的余额已不足';
-      } else {
-        autoFanyi.textContent = '翻译失败';
-      }
+
+    let autoFanyi = msgDiv.parentNode.querySelector('.autofanyi');
+    if(!autoFanyi) {
+      return
+    }
+    if(!msg || isNumber(msg)){
+      autoFanyi.innerHTML = '';
+      return
+    }
+    let params = getResData(msg, isOwn);
+    let res = await Ferdium.getTran(params, oneworld.token);
+    if (!res.err && res.body.code == 200) {
+      autoFanyi.textContent = res.body.data;
+    } else if (res.body.code == 500) {
+      autoFanyi.textContent = res.body.msg;
     } else {
-      autoFanyi.style.display = 'none';
+      autoFanyi.textContent = '翻译失败';
     }
   };
 
   const clickFanyi = async (e, isOwn) => {
     let div = getEventTarget(e);
     let msg = div.parentElement.querySelector(classnameCfg.allMsg).textContent;
-    let params = getResData(msg, isOwn);
-    let res = await Ferdium.getTran(params, oneworld.token);
+    // let params = getResData(msg, isOwn);
+    let res = await Ferdium.getTran({
+      word: msg,
+      from: isOwn ? oneworld.settingCfg.sfrom : oneworld.settingCfg.jfrom,
+      to: isOwn ? oneworld.settingCfg.sto : oneworld.settingCfg.jto,
+      type: oneworld.settingCfg.type,
+    }, oneworld.token);
     if (!res.err && res.body.code === 200) {
       div.textContent = res.body.data;
     } else if (res.body.code === 500) {
-      div.textContent = '您的余额已不足';
+      div.textContent = res.body.msg;
     } else {
       div.textContent = '翻译失败';
     }
@@ -277,7 +297,7 @@ module.exports = (Ferdium, settings) => {
     // parent.parentElement.append(reTranEl);
     parent.insertAdjacentHTML(
       'afterEnd',
-      `<div class="${className}" style="margin-right:28px;font-size:${oneworld.settingCfg.fontsize}px;color:${oneworld.settingCfg.fontcolor}">${msg}</div>`,
+      `<div class="${className}" style="margin-left:11px;margin-right:12px;font-size:${oneworld.settingCfg.fontsize}px;color:${oneworld.settingCfg.fontcolor}">${msg}</div>`,
     );
   };
 
@@ -296,7 +316,12 @@ module.exports = (Ferdium, settings) => {
     setTimeout(func, time);
   };
   const isGroup = () => {
-    return false;
+    let el = document.querySelector(classnameCfg.groupflagEl)
+    if(!el) {
+      return false
+    }
+    let title = el.getAttribute('title')
+    return !isNaN(parseFloat(title))
   };
 
   const getResData = (msgText, isMe, isSend) => {

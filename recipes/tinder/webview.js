@@ -1,9 +1,3 @@
-const _path = _interopRequireDefault(require('path'));
-
-function _interopRequireDefault(obj) {
-  return obj && obj.__esModule ? obj : { default: obj };
-}
-
 module.exports = (Ferdium, settings) => {
   let oneworld = {
     token: settings.userData.token,
@@ -18,9 +12,11 @@ module.exports = (Ferdium, settings) => {
 
   // 文件名
   let classname = {
-    main: '.tiktok-d0yksp-DivChatBox',
-    allMsg: '.tiktok-1rdxtjl-PText',
-    sendBtn: '.tiktok-d7yhdo-StyledSendButton'
+    friendList: '.messageList',
+    ipt: '.chat form textarea',
+    main: '.chat',
+    allMsg: '.msgHelper .msg .text',
+    sendBtn: '.chat form button[type="submit"]'
   };
 
   Ferdium.ipcRenderer.on('service-settings-update', (res, data) => {
@@ -33,9 +29,21 @@ module.exports = (Ferdium, settings) => {
   });
 
   const getMessages = () => {
-    const elements = document.querySelector('.tiktok-gszb57-SupMsgBadge');
-    let count = elements ? elements.textContent : 0;
-    Ferdium.setBadge(count, count);
+    let directCount = 0;
+    let groupCount = 0;
+    const directCountSelector = document.querySelectorAll(
+      '.chat-list .ListItem.private .Badge.unread:not(.muted)',
+    );
+    const groupCountSelector = document.querySelectorAll(
+      '.chat-list .ListItem.group .Badge.unread:not(.muted)',
+    );
+    for (const badge of directCountSelector) {
+      directCount += Ferdium.safeParseInt(badge.textContent);
+    }
+    for (const badge of groupCountSelector) {
+      groupCount += Ferdium.safeParseInt(badge.textContent);
+    }
+    Ferdium.setBadge(directCount+groupCount, directCount+groupCount);
   };
 
   const getActiveDialogTitle = () => {
@@ -48,8 +56,6 @@ module.exports = (Ferdium, settings) => {
   };
 
   Ferdium.loop(loopFunc);
-
-  Ferdium.injectCSS(_path.default.join(__dirname, 'service.css'));
 
   //初始化
   Ferdium.initLocalData(settings.localReadData);
@@ -73,6 +79,11 @@ module.exports = (Ferdium, settings) => {
     return document.querySelector(classname.main);
   };
 
+  //获取好友列表
+  const getFriendView = () => {
+    return document.querySelectorAll(classname.friendList);
+  };
+
   //好友列表监听
   const listerFriendList = () => {
     document.addEventListener(
@@ -82,6 +93,18 @@ module.exports = (Ferdium, settings) => {
       },
       true,
     );
+  };
+
+  //监听是否点击到好友列表
+  const addClickLister = e => {
+    let target = e.target;
+    let friendView = getFriendView();
+    if (friendView[0] && friendView[0].contains(target)) {
+      setTimeForFunc(addFreshEvent, 500);
+    }
+    if (friendView[1] && friendView[1].contains(target)) {
+      setTimeForFunc(addFreshEvent, 500);
+    }
   };
 
   const addFreshEvent = () => {
@@ -99,8 +122,8 @@ module.exports = (Ferdium, settings) => {
       let text = msg.textContent;
       const check = !msg.parentNode.querySelector('.autofanyi') && !msg.parentNode.querySelector('.click-fanyi');
       const isOwn =
-        msg.parentElement.parentElement.className.includes(
-          'tiktok-101150x-DivMessageContainer',
+        msg.parentElement.className.includes(
+          'C($c-ds-text-chat-bubble-send)',
         );
       if (check) {
         if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
@@ -182,9 +205,9 @@ module.exports = (Ferdium, settings) => {
         if (!oneworld.settingCfg.tranflag) return;
         if (isGroup() && !oneworld.settingCfg.groupflag) return;
         if (key === 'Enter') {
-          let msg = event.target.textContent;
+          let msg = event.target.value;
           msg = replaceAllHtml(msg);
-          handleSendMessage(event.target, msg);
+          handleSendMessage(document.querySelector(classname.ipt), msg);
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation();
@@ -206,15 +229,15 @@ module.exports = (Ferdium, settings) => {
       console.log(res.err, 'md-error');
       return;
     }
-    const textEl = documents.querySelector('span[data-text="true"]')
+    console.log(documents)
     if (res.body.code === 500) {
-      textEl.textContent = res.body.msg;
+      documents.value = res.body.msg;
     } else if (res.body.code === 200 && res.body.data) {
       let result = res.body.data;
       result = result.replace(/</gi, '&lt;');
       result = result.replace(/>/gi, '&gt;');
       result = result.replace(/&#39;/gi, '\'');
-      textEl.textContent = result;
+      documents.value = result;
       const evt = document.createEvent('HTMLEvents');
       evt.initEvent('input', true, true);
       documents.dispatchEvent(evt);
@@ -230,10 +253,8 @@ module.exports = (Ferdium, settings) => {
   };
 
   const clickSendBtn = () => {
-    let sendBtn = document.querySelector(classname.sendBtn);
-    let evtClick = window.document.createEvent('MouseEvents');
-    evtClick.initEvent('click', true, true);
-    sendBtn.dispatchEvent(evtClick);
+    const sendBtn = document.querySelector(classname.sendBtn);
+    sendBtn.click();
   };
 
   //检测是否全数字

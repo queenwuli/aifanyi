@@ -1,1 +1,1 @@
-rd /s /q  %appdata%\OneWorldDev\recipes\
+rd /s /q  %appdata%\爱翻译Dev\recipes\

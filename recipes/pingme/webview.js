@@ -15,8 +15,9 @@ module.exports = (Ferdium, settings) => {
     friendList: 'li[data-v-7ddefda2]',
     ipt: 'div#inputChat.flex-grow-1',
     main: 'div#chat-right.flex-grow-1.d-flex.flex-column',
-    ownMsg: 'div.right-message.pingme-chatting-color',
-    otherSideMsg: 'div.left-message',
+    allMsg: '.message',
+    ownMsg: '#screen-chat div.right-message.pingme-chatting-color',
+    otherSideMsg: '#screen-chat div.left-message',
     sendBtn:
       'button.v-icon.notranslate.v-icon--link.mdi.mdi-36px.mdi-send.theme--light.pingme-color',
   };
@@ -32,7 +33,7 @@ module.exports = (Ferdium, settings) => {
   });
 
   //初始化
-  Ferdium.initLocalData();
+  Ferdium.initLocalData(settings.localReadData);
   Ferdium.initOneWorld(() => {
     console.log('ready to translation');
     setTimeout(() => {
@@ -53,7 +54,8 @@ module.exports = (Ferdium, settings) => {
       'keydown',
       event => {
         let key = event.key;
-        if (!oneworld.settingCfg.sendtranslation) return;
+        if (!oneworld.settingCfg.tranflag) return;
+        if (isGroup() && !oneworld.settingCfg.groupflag) return;
         if (key === 'Enter') {
           let msg = getIptSendMsg();
           msg = replaceAllHtml(msg);
@@ -81,7 +83,7 @@ module.exports = (Ferdium, settings) => {
       return;
     }
     if (res.body.code === 500) {
-      documents.textContent = '字符余额不足，请充值';
+      documents.textContent = res.body.msg;
     } else if (res.body.code === 200 && res.body.data) {
       let result = res.body.data;
       result = result.replace(/</gi, '&lt;');
@@ -102,7 +104,7 @@ module.exports = (Ferdium, settings) => {
     data = data.replace(/<\/?[^>]+>/g, ''); // 过滤所有html
     data = data.replace(/&lt;/gi, '<'); // 过滤所有的&lt;
     data = data.replace(/&gt;/gi, '>'); // 过滤所有的&gt;
-    data = data.replace(/\s+/g, '\n'); // 过滤所有的空格
+    data = data.trim(); // 过滤所有的空格
     return data;
   };
 
@@ -111,30 +113,28 @@ module.exports = (Ferdium, settings) => {
     document.addEventListener(
       'click',
       e => {
-        setTimeForFunc(() => {
-          addClickLister(e);
-        }, 500);
+        setTimeForFunc(addFreshEvent, 500);
       },
       true,
     );
-  };
-
-  //监听是否点击到好友列表
-  const addClickLister = e => {
-    let friendView = getFriendView();
-    let target = e.target;
-    if (friendView[0] && friendView[0].contains(target)) {
-      setTimeForFunc(addFreshEvent, 500);
-    }
-    if (friendView[1] && friendView[1].contains(target)) {
-      setTimeForFunc(addFreshEvent, 500);
-    }
   };
 
   //添加新事件
   const addFreshEvent = () => {
     let view = getMainView();
     if (view) {
+      let autofanyis = document.querySelectorAll('.autofanyi')
+      for(var i = 0 ; i < autofanyis.length; i++) {
+        if(autofanyis[i].parentNode && autofanyis[i].parentNode.querySelector('.autofanyi')) {
+          autofanyis[i].parentNode.removeChild(autofanyis[i].parentNode.querySelector('.autofanyi'))
+        }
+      }
+      let clickFanyis = document.querySelectorAll('.click-fanyi')
+      for(var i = 0 ; i < clickFanyis.length; i++) {
+        if(clickFanyis[i].parentNode && clickFanyis[i].parentNode.querySelector('.click-fanyi')) {
+          clickFanyis[i].parentNode.removeChild(clickFanyis[i].parentNode.querySelector('.click-fanyi'))
+        }
+      }
       freshChatList();
       view.removeEventListener('DOMNodeInserted', freshChatList);
       view.addEventListener('DOMNodeInserted', freshChatList, true);
@@ -143,58 +143,109 @@ module.exports = (Ferdium, settings) => {
 
   //新的聊天列表
   const freshChatList = () => {
-    const ownMsg = document.querySelectorAll(classname.ownMsg);
-    const otherMsg = document.querySelectorAll(classname.otherSideMsg);
-    renderList(ownMsg, true);
-    renderList(otherMsg);
+    renderListMe();
+    renderListHe();
   };
-
+  const renderListMe = () => {
+    const listMsg = document.querySelectorAll(classname.ownMsg);
+    for (const msgDiv of listMsg) {
+      const msg = msgDiv.textContent;
+      let check = !msgDiv.nextSibling
+      if(check) {
+        if(oneworld.settingCfg.tranflag) {
+          insterDiv(msgDiv, 'autofanyi', '...', true);
+          autoFanyi(msg, msgDiv, true);
+        }else{
+          insterDiv(msgDiv, 'click-fanyi', '点击翻译', true);
+          msgDiv.parentNode
+            .querySelector('.click-fanyi')
+            .addEventListener('click', e => clickFanyi(e, true));
+        }
+      }
+    }
+  }
+  const renderListHe = () => {
+    const listMsg = document.querySelectorAll(classname.otherSideMsg);
+    for (const msgDiv of listMsg) {
+      const msg = msgDiv.textContent;
+      let check = msgDiv.parentNode.childElementCount == 2
+      if(check) {
+        if(oneworld.settingCfg.sendtranslation) {
+          insterDiv(msgDiv, 'autofanyi', '...', false);
+          autoFanyi(msg, msgDiv, false);
+        }else{
+          insterDiv(msgDiv, 'click-fanyi', '点击翻译', false);
+          msgDiv.parentNode
+            .querySelector('.click-fanyi')
+            .addEventListener('click', e => clickFanyi(e, false));
+        }
+      }
+    }
+  }
   const renderList = (listMsg, isOwn) => {
     for (const msgDiv of listMsg) {
       const msg = msgDiv.textContent;
-      const num = isOwn ? 1 : 2;
-      const checkList = msgDiv.parentNode.childElementCount === num;
-      if (checkList) {
-        if (
-          !oneworld.settingCfg.tranflag ||
-          (isGroup() && !oneworld.settingCfg.groupflag)
-        ) {
+      let rightEl = msgDiv.querySelector('.right-message')
+      let check = false;
+      if(isOwn) {
+        check = rightEl ? !rightEl.nextSibling : false
+      }else{
+        check = msgDiv.parentNode.childElementCount == 2
+      }
+      if (check) {
+        if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
+          insterDiv(msgDiv, 'autofanyi', '...', isOwn);
+          autoFanyi(msg, msgDiv, isOwn);
+        } else {
           insterDiv(msgDiv, 'click-fanyi', '点击翻译', isOwn);
           msgDiv.parentNode
             .querySelector('.click-fanyi')
             .addEventListener('click', e => clickFanyi(e, isOwn));
-        } else {
-          insterDiv(msgDiv, 'autofanyi', '...', isOwn);
-          autoFanyi(msg, msgDiv, isOwn);
         }
       }
     }
   };
 
   const autoFanyi = async (msg, msgDiv, isOwn) => {
-    let autoFanyi = msgDiv.parentNode.querySelector('.autofanyi');
+    // 自动翻译时隐藏点击翻译按钮
     let clickfanyi = msgDiv.parentNode.querySelector('.click-fanyi');
-    if (clickfanyi) clickfanyi.style.display = 'none';
-    if (!oneworld.settingCfg.tranflag && autoFanyi) autoFanyi.textContent = '';
-    if (!isNumber(msg)) {
-      let params = getResData(msg, isOwn);
-      let res = await Ferdium.getTran(params, oneworld.token);
-      autoFanyi.textContent =
-        !res.err && res.body.code === 200 ? res.body.data : '翻译失败';
+    if (clickfanyi) {
+      msgDiv.parentNode.querySelector('.click-fanyi').removeEventListener('click', clickFanyi);
+      msgDiv.parentNode.removeChild(clickfanyi)
+    };
+
+    let autoFanyi = msgDiv.parentNode.querySelector('.autofanyi');
+    if(!autoFanyi) {
+      return
+    }
+    if(!msg || isNumber(msg)){
+      autoFanyi.innerHTML = '';
+      return
+    }
+    let params = getResData(msg, isOwn);
+    let res = await Ferdium.getTran(params, oneworld.token);
+    if (!res.err && res.body.code == 200) {
+      autoFanyi.innerHTML = res.body.data;
+    } else if (res.body.code == 500) {
+      autoFanyi.innerHTML = res.body.msg;
     } else {
-      autoFanyi.style.display = 'none';
+      autoFanyi.innerHTML = '翻译失败';
     }
   };
 
   const clickFanyi = async (e, isOwn) => {
     let div = getEventTarget(e);
-    let msg = div.nextSibling.textContent;
-    const params = getResData(msg, isOwn);
-    const res = await Ferdium.getTran(params, oneworld.token);
+    let msg = div.previousSibling.textContent;
+    const res = await Ferdium.getTran({
+      word: msg,
+      from: isOwn ? oneworld.settingCfg.sfrom : oneworld.settingCfg.jfrom,
+      to: isOwn ? oneworld.settingCfg.sto : oneworld.settingCfg.jto,
+      type: oneworld.settingCfg.type,
+    }, oneworld.token);
     if (!res.err && res.body.code === 200) {
       div.textContent = res.body.data;
     } else if (res.body.code === 500) {
-      div.textContent = '您的余额已不足';
+      div.textContent = res.body.msg;
     } else {
       div.textContent = '翻译失败';
     }

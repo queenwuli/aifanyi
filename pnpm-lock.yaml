@@ -572,7 +572,7 @@ importers:
   recipes/telegram:
     specifiers: {}
 
-  recipes/textfree:
+  recipes/telegram-a:
     specifiers: {}
 
   recipes/textnow:

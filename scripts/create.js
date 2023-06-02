@@ -19,7 +19,7 @@ pnpm create WhatsApp FerdiumDev
 
 const recipeName = process.argv[2];
 const recipe = recipeName.toLowerCase().replace(/\s/g, '-');
-const folderName = process.argv[3] || 'Ferdium';
+const folderName = process.argv[3] || '爱翻译';
 const filesThatNeedTextReplace = [
   'package.json',
   'index.js',

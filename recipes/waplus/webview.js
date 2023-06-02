@@ -1,3 +1,4 @@
+const { setTimeout } = require('timers');
 const _path = _interopRequireDefault(require('path'));
 
 function _interopRequireDefault(obj) {
@@ -15,17 +16,19 @@ module.exports = (Ferdium, settings) => {
       jto: settings.jto,
     },
   };
-
   const classnameCfg = {
     ipt: '#main > footer > div._2lSWV._3cjY2.copyable-area > div > span:nth-child(2) > div > div._1VZX7 > div._3Uu1_',
-    main: '#main > div._2gzeB > div > div._5kRIK > div.n5hs2j7m.oq31bsqd.gx1rr48f.qh5tioqs',
+    main: '#main ._3B19s',
     allMsg: '._21Ahp',
     allMsgTxt: '._21Ahp > ._11JPr',
-    friendList: '.lhggkp7q.ln8gz9je.rx9719la',
+    friendList: 'div[data-testid="chat-list"]',
+    friendList2: '.g0rxnol2.g0rxnol2.thghmljt.p357zi0d.rjo8vgbg.ggj6brxn.f8m0rgwh.gfz4du6o.ag5g9lrv.bs7a17vp',
     sendBtn: '.tvf2evcx.oq44ahr5.lb5m6g5c.svlsagor.p2rjqpw5.epia9gcq',
-    groupflagEl: '._2YnE3 > .g0rxnol2 > .lhggkp7q > span'
+    groupflagEl: '#main div[data-testid="chat-subtitle"] .ggj6brxn.gfz4du6o.r7fjleex.lhj4utae.le5p0ye3._11JPr.selectable-text.copyable-text',
+    scrollTopEl: '#main div[aria-label="滚动到底部"]',
+    readMoreBtn: '#main .read-more-button',
+    chatIdEl: '._199zF._3j691._2IMPQ ._21S-L'
   };
-
   Ferdium.ipcRenderer.on('service-settings-update', (res, data) => {
     updateSettingData(data);
   });
@@ -58,7 +61,7 @@ module.exports = (Ferdium, settings) => {
   };
 
   // inject webview hacking script
-  Ferdium.injectJSUnsafe(_path.default.join(__dirname, 'webview-unsafe.js'));
+  // Ferdium.injectJSUnsafe(_path.default.join(__dirname, 'webview-unsafe.js'));
 
   const getActiveDialogTitle = () => {
     const element = document.querySelector('header .emoji-texttt');
@@ -87,81 +90,168 @@ module.exports = (Ferdium, settings) => {
 
   Ferdium.injectCSS(_path.default.join(__dirname, 'service.css'));
 
-  /**初始化翻译接口 */
-  Ferdium.initLocalData();
-  Ferdium.initOneWorld(() => {
-    console.log('ready to translation');
-    setTimeout(() => {
-      setTimeForFunc(listerFriendList, 500);
-      let mainLoop = setInterval(() => {
-        let view = getMainView();
-        if (view) {
-          addKeyDownAndTran();
-          setTimeForFunc(addFreshEvent, 500);
-          clearInterval(mainLoop);
+  const getMainView = () => {
+    return document.querySelector(classnameCfg.main);
+  };
+  //获取好友列表
+  const getFriendView = () => {
+    return document.querySelector(classnameCfg.friendList)
+  };
+  const getFriendView2 = () => {
+    return document.querySelector(classnameCfg.friendList2);
+  };
+  const getChatId = () => {
+    let el = document.querySelector(classnameCfg.chatIdEl)
+    if(!el) {
+      return ''
+    }
+    return 'waplus-'+el.textContent
+  }
+  const listerFriendList = () => {
+    document.addEventListener(
+      'click',
+      (e) => {
+        if(getFriendView()?.contains(e.target)) {
+          let chatId = getChatId()
+          Ferdium.ipcRenderer.send('setChatInfo', chatId, 'waplus')
         }
-      }, 500);
-    }, 1500);
-  });
-
-  const getIptSendMsg = () => {
-    let ipt = document.querySelector(classnameCfg.ipt);
-    return ipt.textContent;
+        setTimeout(() => {
+          if(getFriendView2()?.contains(e.target)) {
+            let chatId = getChatId()
+            Ferdium.ipcRenderer.send('setChatInfo', chatId, 'waplus')
+          }
+        }, 0)
+      },
+      true,
+    );
   };
 
+  // 是否正在翻译
+  let isTranslating = false
   const addKeyDownAndTran = () => {
     document.addEventListener(
       'keydown',
       event => {
-        let key = event.key;
-        if (!oneworld.settingCfg.tranflag) return;
-        if (isGroup() && !oneworld.settingCfg.groupflag) return;
-        if (key === 'Enter') {
-          const msg = getIptSendMsg();
-          handleSendMessage(document.querySelector(classnameCfg.ipt), msg);
+        if(event.key === 'Enter') {
+          let msg = getIptSendMsg();
+          if(!msg) return
+          if(isNumber(msg)) return
+          if (!oneworld.settingCfg.tranflag) return;
+          if (isGroup() && !oneworld.settingCfg.groupflag) return;
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation();
+          if(isTranslating) return;
+          isTranslating = true
+          handleSendMessage(document.querySelector(classnameCfg.ipt), msg);
         }
       },
       true,
     );
   };
 
+  /**初始化翻译接口 */
+  Ferdium.initLocalData(settings.localReadData);
+  Ferdium.initOneWorld(() => {
+    console.log('ready to translation');
+    listerFriendList()
+    addKeyDownAndTran()
+  });
+
+  const EMOJISTR = '😁'
+  const getIptSendMsg = () => {
+    let value = ''
+    let txt = ''
+    let inputEl = document.querySelector(classnameCfg.ipt)
+    if(!inputEl) {
+      return value
+    }
+    let el = inputEl.querySelector('p.selectable-text.copyable-text.iq0m558w')
+    if(!el) {
+      return value
+    }
+    let childNodes = el.childNodes
+    for(var i = 0; i< childNodes.length ; i++) {
+      if(childNodes[i].className.includes("fe5nidar khvhiq1o r5qsrrlp i5tg98hk f9ovudaz przvwfww gx1rr48f gfz4du6o r7fjleex nz2484kf svot0ezm dcnh1tix sxl192xd t3g6t33p")) {
+        value += EMOJISTR
+      }else{
+        value += childNodes[i].textContent
+        txt +=childNodes[i].textContent
+      }
+    }
+    if(!txt) {
+      return ''
+    }
+    value = value ? replaceAllHtml(value) : ''
+    return value;
+  };
+
   /**发送消息 */
   const handleSendMessage = async (documents, context) => {
+    let spanEls = documents.querySelectorAll('span.selectable-text.copyable-text')
     const params = getResData(context, true, true);
     params.isSend = true;
     const res = await Ferdium.getTran(params, oneworld.token);
     if (res.err) {
+      isTranslating = false
       console.log(res.err, 'md-error');
       return;
     }
-    const textEl = documents.querySelector('span').childNodes[0];
-    if (res.body.code === 500) {
-      textEl.textContent = '字符余额不足，请充值';
-    }
+    
     if (res.body.code === 200 && res.body.data) {
-      textEl.textContent = res.body.data;
+      let result = res.body.data;
+      result = result.replace(/&#39;/gi, '\'');
+      let arr = result.split(EMOJISTR)
+      let arr2 = []
+      arr.forEach((item) => {
+        if(item) {
+          arr2.push(item)
+        }
+      })
+      for(var i = 0 ; i < spanEls.length; i++) {
+        if(spanEls[i].childNodes[0]) {
+          spanEls[i].childNodes[0].textContent = arr2[i]||' '
+        }
+      }
       setTimeout(() => {
         document.querySelector(classnameCfg.sendBtn)?.click();
-      }, 500);
+        isTranslating = false
+      }, 0);
+    }else{
+      isTranslating = false
+      for(var i = 0 ; i < spanEls.length; i++) {
+        if(spanEls[i].childNodes[0]) {
+          spanEls[i].childNodes[0].textContent = ' '
+        }
+      }
+      let textEl = spanEls[0].childNodes[0]
+      textEl.textContent = res.body.msg;
     }
   };
-
-  const getMainView = () => {
-    return document.querySelector(classnameCfg.main);
+  const replaceAllHtml = data => {
+    data = data.replace(/<\/?[^>]+>/g, ''); // 过滤所有html
+    data = data.replace(/&lt;/gi, '<'); // 过滤所有的&lt;
+    data = data.replace(/&gt;/gi, '>'); // 过滤所有的&gt;
+    data = data.trim(); // 过滤所有的空格
+    return data;
   };
-
-  const listerFriendList = () => {
-    document.addEventListener(
-      'click',
-      () => {
-        setTimeForFunc(addFreshEvent, 500);
-      },
-      true,
-    );
-  };
+  
+  const moveToBottom = () => {
+    let btnEl = null
+    let num = 0
+    let timer = setInterval(() => {
+      btnEl = document.querySelector(classnameCfg.scrollTopEl)
+      if(btnEl) {
+        btnEl.click()
+      }else{
+        clearInterval(timer)
+      }
+      num++
+      if(num >= 8) {
+        clearInterval(timer)
+      }
+    },200)
+  }
 
   const insterDiv = (parent, className, msg, isOwn) => {
     const reTranEl = document.createElement('span');
@@ -189,11 +279,30 @@ module.exports = (Ferdium, settings) => {
   // 判断是群聊还是私聊, true 群聊
   const isGroup = () => {
     let el = document.querySelector(classnameCfg.groupflagEl)
-    return el && el.getAttribute('data-testid') === 'default-group'
+    if(!el) {
+      return false
+    }
+    if(el.getAttribute('title')?.indexOf('群组') > -1 || el.getAttribute('title')?.indexOf('您') > -1) {
+      return true
+    }
+    return false
   }
 
+  function emojiToImg(str, count, emojis) {
+    let index = str.indexOf(EMOJISTR)
+    if(index === -1) {
+      return str
+    }
+    if(!emojis[count]) {
+      return str
+    }
+    str = str.replace(EMOJISTR, `<img draggable="${emojis[count].getAttribute('draggable')}" src="${emojis[count].getAttribute('src')}"  class="${emojis[count].getAttribute('class')}" style="${emojis[count].getAttribute('style')}" tabindex="${emojis[count].getAttribute('tabindex')}" />`)
+    count++
+    return emojiToImg(str, count, emojis)
+  }
+    
   //自动翻译
-  const autoFanyi = async (msg, msgDiv, isOwn, isSend) => {
+  const autoFanyi = async (msg, msgDiv, isOwn) => {
     
     // 自动翻译时隐藏点击翻译按钮
     let clickfanyi = msgDiv.parentNode.querySelector('.click-fanyi');
@@ -203,50 +312,76 @@ module.exports = (Ferdium, settings) => {
     if(!autoFanyi) {
       return
     }
-    msg = msg.split('\n')[0];
     if(!msg || isNumber(msg)){
       autoFanyi.innerHTML = '';
       return
     }
-    let params = getResData(msg, isOwn, isSend);
+    let params = getResData(msg, isOwn);
     let res = await Ferdium.getTran(params, oneworld.token);
     if (!res.err && res.body.code == 200) {
-      autoFanyi.innerHTML = res.body.data;
+      let result = res.body.data;
+      result = result.replace(/&#39;/gi, '\'');
+      let emojis = msgDiv.parentNode.querySelector(classnameCfg.allMsg).querySelectorAll('.emoji')
+      autoFanyi.innerHTML = emojiToImg(result, 0, emojis);
     } else if (res.body.code == 500) {
-      autoFanyi.innerHTML = '您的余额已不足';
+      autoFanyi.innerHTML = res.body.msg;
     } else {
       autoFanyi.innerHTML = '翻译失败';
     }
   };
 
   /**用户点击其他位置 重新监听页面变化 */
-  const addFreshEvent = () => {
+  const addFreshEvent = async () => {
     let view = getMainView();
     if (view) {
       freshChatList();
+      rendReadMoreEvent()
       view.removeEventListener('DOMNodeInserted', freshChatList);
       view.addEventListener('DOMNodeInserted', freshChatList, true);
     }
   };
+  Ferdium.ipcRenderer.on('chat-settings-update', (res, data) => {
+    updateSettingData(data);
+    if(data.isReload) {
+      addFreshEvent()
+      moveToBottom()
+    }
+  });
 
+  Ferdium.ipcRenderer.on('chat-settings-reload', () => {
+    let chatId = getChatId()
+    Ferdium.ipcRenderer.send('setChatInfo', chatId, 'waplus')
+  });
+  const getTxt = (div) => {
+    let hasEmoji = div.querySelector('.emoji')
+    let text = ''
+    if(!hasEmoji) {
+      text = div.querySelector('._11JPr.selectable-text.copyable-text') && div.querySelector('._11JPr.selectable-text.copyable-text').textContent;
+    }else{
+      let childNodes = div.querySelector('span>span') ? div.querySelector('span>span').childNodes : []
+      for(var i = 0; i< childNodes.length ; i++) {
+        if(childNodes[i].nodeName == "#text") {
+          if(childNodes[i].textContent)
+          text += childNodes[i].textContent
+        }else if(childNodes[i].nodeName == "IMG"){
+          text += EMOJISTR
+        }
+      }
+    }
+    return text
+  }
   /**刷新聊天栏 插入翻译 */
-  const freshChatList = (e) => {
+  const freshChatList = () => {
     const msgList = document.querySelectorAll(classnameCfg.allMsg);
     for (const msg of msgList) {
-      const text = msg.textContent.slice(
-        0,
-        Math.max(0, msg.textContent.length - 5),
-      );
-      const isOwn =
-        msg.parentElement.parentElement.parentElement.parentElement.parentElement.className.includes(
-          'message-out',
-        );
-      const check = msg.parentElement.children.length === 1;
+      const check = !msg.parentNode.querySelector('.autofanyi') && !msg.parentNode.querySelector('.click-fanyi');
       if (check) {
+        const isOwn = msg.parentElement.parentElement.parentElement.parentElement.parentElement.className.includes('message-out');
         if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
           // 如果是群聊则跟进群聊开关判断
           if((isGroup() && oneworld.settingCfg.groupflag) || !isGroup()) {
-            insterDiv(msg, 'autofanyi', '...', isOwn);
+            const text = getTxt(msg)
+            insterDiv(msg, 'autofanyi selectable-text', '翻译中...', isOwn);
             autoFanyi(text, msg, isOwn);
           }else{
             insterDiv(msg, 'click-fanyi', '点击翻译', isOwn);
@@ -261,6 +396,49 @@ module.exports = (Ferdium, settings) => {
               .addEventListener('click', e => clickFanyi(e, isOwn));
         }
       }
+    }
+  };
+
+  const rendReadMoreEvent = () => {
+    let moreELs = document.querySelectorAll(classnameCfg.readMoreBtn)
+    for(var i = 0; i < moreELs.length; i++) {
+      (function(j){
+          moreELs[j].onclick = function () {
+            const div = moreELs[j].parentNode
+            setTimeout(() => {
+				const isOwn = div.parentElement.parentElement.parentElement.parentElement.parentElement.className.includes('message-out');
+				const text = getTxt(div);
+				if(div.parentNode.querySelector('.autofanyi')){
+					autoFanyi(text, div, isOwn);
+				}
+				if(div.parentNode.querySelector('.click-fanyi-translated')){
+					reTranslated(text, div, isOwn);
+				}
+            },1000)
+          }
+       })(i);
+    }
+  }
+  
+  const reTranslated = async (msg, msgDiv, isOwn) => {
+    let autoFanyi = msgDiv.parentNode.querySelector('.click-fanyi-translated');
+    if(!autoFanyi) {
+      return
+    }
+    if(!msg || isNumber(msg)){
+      autoFanyi.innerHTML = '';
+      return
+    }
+    let params = getResData(msg, isOwn);
+    let res = await Ferdium.getTran(params, oneworld.token);
+    if (!res.err && res.body.code == 200) {
+      let result = res.body.data;
+      result = result.replace(/&#39;/gi, '\'');
+      autoFanyi.innerHTML = result;
+    } else if (res.body.code == 500) {
+      autoFanyi.innerHTML = res.body.msg;
+    } else {
+      autoFanyi.innerHTML = '翻译失败';
     }
   };
 
@@ -297,6 +475,7 @@ module.exports = (Ferdium, settings) => {
       return;
     }
     div.textContent = res.body.data;
+    div.className = 'click-fanyi click-fanyi-translated';
     div.removeEventListener('click', clickFanyi);
   };
 
@@ -310,9 +489,5 @@ module.exports = (Ferdium, settings) => {
   const isNumber = str => {
     var patrn = /^(-)?\d+(\.\d+)?$/;
     return !(patrn.exec(str) == null || str === '');
-  };
-  // 掩饰
-  const setTimeForFunc = (func, time) => {
-    setTimeout(func, time);
   };
 };

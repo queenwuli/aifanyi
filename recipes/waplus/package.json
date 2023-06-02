@@ -1,7 +1,7 @@
 {
   "id": "waplus",
-  "name": "WAPlus",
-  "version": "1.4.0",
+  "name": "WhatsApp多功能版",
+  "version": "1.4.7",
   "license": "MIT",
   "config": {
     "serviceURL": "https://web.whatsapp.com"

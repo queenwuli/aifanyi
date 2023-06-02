@@ -34,7 +34,7 @@ module.exports = (Ferdium, settings) => {
   };
 
   Ferdium.loop(getMessages);
-  Ferdium.initLocalData();
+  Ferdium.initLocalData(settings.localReadData);
   Ferdium.initOneWorld(() => {
     console.log('ready to translation');
     setTimeout(() => {
@@ -83,9 +83,9 @@ module.exports = (Ferdium, settings) => {
     const msgList = view.querySelectorAll(classnameCfg.allMsg);
     for (const msgDiv of msgList) {
       const msg = msgDiv.querySelector('.text');
-      const text = msg.textContent;
+      const text = msg ? msg.textContent : '';
       const isOwn = msgDiv.className.includes('me');
-      const check = msg.parentElement.children.length === 1;
+      const check = msg ? msg.parentElement.children.length === 1 : false;
       if (check) {
         if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
           // 如果是群聊则跟进群聊开关判断
@@ -131,7 +131,7 @@ module.exports = (Ferdium, settings) => {
     if (!res.err && res.body.code === 200) {
       autoFanyi.textContent = res.body.data;
     } else if (res.body.code === 500) {
-      autoFanyi.textContent = '您的余额已不足';
+      autoFanyi.textContent = res.body.msg;
     } else {
       autoFanyi.textContent = '翻译失败';
     }
@@ -190,6 +190,15 @@ module.exports = (Ferdium, settings) => {
   };
 
   const handleSendMessage = async (documents, context) => {
+    if(/^[@!~%.^&*:!$()-ao>]+$/.test(context)){
+      const evt = document.createEvent('HTMLEvents');
+      evt.initEvent('input', true, true);
+      documents.dispatchEvent(evt);
+      setTimeout(() => {
+        clickSendBtn();
+      }, 500);
+      return
+    }
     const params = getResData(context, true, true);
     params.isSend = true;
     const res = await Ferdium.getTran(params, oneworld.token);
@@ -198,7 +207,7 @@ module.exports = (Ferdium, settings) => {
       return;
     }
     if (res.body.code === 500) {
-      documents.textContent = '字符余额不足，请充值';
+      documents.textContent = res.body.msg;
     } else if (res.body.code === 200 && res.body.data) {
       const evt = document.createEvent('HTMLEvents');
       evt.initEvent('input', true, true);
@@ -271,7 +280,7 @@ module.exports = (Ferdium, settings) => {
     data = data.replace(/<\/?[^>]+>/g, ''); // 过滤所有html
     data = data.replace(/&lt;/gi, '<'); // 过滤所有的&lt;
     data = data.replace(/&gt;/gi, '>'); // 过滤所有的&gt;
-    data = data.replace(/\s+/g, '\n'); // 过滤所有的空格
+    data = data.replace(/\s+/g, ''); // 过滤所有的空格
     return data;
   };
 
