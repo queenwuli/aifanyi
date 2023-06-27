@@ -11,28 +11,6 @@ module.exports = (Ferdium, settings) => {
       jto: settings.jto,
     },
   };
-  const classnameCfg = {
-    box1: '.scaffold-layout__detail.msg__detail',
-    box2: '.msg-overlay-conversation-bubble__content-wrapper',
-    main: '.scaffold-layout__detail.msg__detail .msg-s-message-list',
-    main2: '.msg-overlay-conversation-bubble__content-wrapper .msg-s-message-list',
-    ipt: '.msg-form__contenteditable',
-    allMsg: '.msg-s-event-listitem__body',
-    friendList: '.scaffold-layout__list.msg__list',
-    friendList2: '.msg-overlay-list-bubble',
-    sendBtn: '.msg-form__send-button',
-  };
-  function getMessages() {
-    let count = 0;
-    const element = document.querySelector(
-      '.global-nav__primary-item:nth-child(4) .notification-badge__count',
-    );
-    if (element) {
-      count = Ferdium.safeParseInt(element.textContent);
-    }
-    Ferdium.setBadge(count);
-  };
-  Ferdium.loop(getMessages);
 
   Ferdium.ipcRenderer.on('service-settings-update', (res, data) => {
     updateSettingData(data);
@@ -43,18 +21,29 @@ module.exports = (Ferdium, settings) => {
     }, 500);
   });
 
+  const classnameCfg = {
+    main: '#chat-right',
+    ipt: '#inputChat',
+    allMsg: '.left-message',
+    allMsg2: '.right-message',
+    friendList: 'aside',
+    sendBtn: '#send-button>button'
+  };
+
+  function getMessages() {
+    let count = 0
+    const els = document.querySelectorAll('.v-badge__wrapper');
+    for(var i = 0; i < els.length; i++) {
+        count+=els[i].textContent
+    }
+    Ferdium.setBadge(count);
+  };
+
+  Ferdium.loop(getMessages);
+  
   Ferdium.initLocalData(settings.localReadData);
   Ferdium.initOneWorld(() => {
     console.log('ready to translation');
-    let timer2 = setInterval(() => {
-      let view = getMainView2();
-      if (view) {
-        addFreshEvent()
-        clearInterval(timer2)
-        timer2 = null
-      }
-    }, 200)
-    
     listerFriendList()
     addKeyDownAndTran()
   });
@@ -68,9 +57,7 @@ module.exports = (Ferdium, settings) => {
       'keydown',
       event => {
         if(event.key === 'Enter') {
-          if(!event.shiftKey) {
-            initSendEvent(event)
-          }
+          initSendEvent(event)
         }
       },
       true,
@@ -78,44 +65,23 @@ module.exports = (Ferdium, settings) => {
   };
 
   function initSendEvent(event) {
-    let documents = null
-    let box1 = document.querySelector(classnameCfg.box1)
-    let box2 = document.querySelector(classnameCfg.box2)
-    if(box1 && box1.contains(event.target)) {
-      documents = box1.querySelector(classnameCfg.ipt)
-    }
-    if(box2 && box2.contains(event.target)) {
-      documents = box2.querySelector(classnameCfg.ipt)
-    }
-    if(!documents) {
+    let documents = document.querySelector(classnameCfg.ipt)
+    let msg = getIptSendMsg();
+    if(!msg) return
+    if(isNumber(msg)) return
+    if (!oneworld.settingCfg.tranflag) return;
+    if (isGroup() && !oneworld.settingCfg.groupflag) return;
+    if (msg == toBeSentTxt && documents?.getAttribute('data-transleted')) {
+      documents.removeAttribute('data-transleted')
+      hideChineseTrans()
       return
     }
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    let msg = getIptSendMsg(documents);
-    if(!msg) return
-    if(isNumber(msg)) {
-      sendBtnClick(documents)
-      return
-    }
-    if (!oneworld.settingCfg.tranflag) {
-      sendBtnClick(documents)
-      return
-    };
-    if (isGroup() && !oneworld.settingCfg.groupflag) {
-      sendBtnClick(documents)
-      return
-    };
-    if (msg == toBeSentTxt && documents?.getAttribute('data-transleted')) {
-      documents.removeAttribute('data-transleted')
-      hideChineseTrans()
-      sendBtnClick(documents)
-      return
-    }
     if(isTranslating) return;
     isTranslating = true
-    showLoading(documents)
+    showLoading()
     handleSendMessage(documents, msg);
   }
 
@@ -130,35 +96,30 @@ module.exports = (Ferdium, settings) => {
       result = result.replace(/</gi, '&lt;');
       result = result.replace(/>/gi, '&gt;');
       result = result.replace(/&#39;/gi, '\'');
-      let arr = result.split('\n')
-      let childrens = documents.querySelectorAll('p')
-      childrens.forEach((item, index) => {
-        item.textContent = arr[index]
-      })
+      documents.textContent = result
       const evt = document.createEvent('HTMLEvents');
       evt.initEvent('input', true, true);
       documents.dispatchEvent(evt);
-      
       if(oneworld.settingCfg.type == 8) {
         toBeSentTxt = result
-        showLoading(documents, '翻译成功，请确认后再次按下回车发送', 1)
+        showLoading('翻译成功，请确认后再次按下回车发送', 1)
         hideLoadTimer = setTimeout(() => {
           hideLoading()
           clearTimeout(hideLoadTimer)
           hideLoadTimer = null
         }, 3000)
         documents.setAttribute('data-transleted', 1)
-        showChineseTrans(documents, result)
+        showChineseTrans(result)
       }else{
         setTimeout(() => {
-          sendBtnClick(documents)
+          document.querySelector(classnameCfg.sendBtn).click();
           hideLoading()
         }, 0);
       }
       isTranslating = false
     }else{
       isTranslating = false
-      showLoading(documents, res.body.msg, 2)
+      showLoading(res.body.msg, 2)
       hideLoadTimer = setTimeout(() => {
         hideLoading()
         clearTimeout(hideLoadTimer)
@@ -166,10 +127,6 @@ module.exports = (Ferdium, settings) => {
       }, 3000)
     }
   };
-
-  function sendBtnClick(documents) {
-    documents.parentNode.parentNode.parentNode.parentNode.querySelector(classnameCfg.sendBtn)?.click();
-  }
 
   // eslint-disable-next-line unicorn/consistent-function-scoping
   function replaceAllHtml(data) {
@@ -180,70 +137,44 @@ module.exports = (Ferdium, settings) => {
     return data;
   };
 
-  function getIptSendMsg(div) {
-    if(!div) {
+  function getIptSendMsg() {
+    let inputEl = document.querySelector(classnameCfg.ipt)
+    if(!inputEl) {
       return ''
     }
-    let value = ''
-    let children = div.querySelectorAll('p')
-    for(var i = 0; i < children.length; i++) {
-      if(i===0){
-        value += children[i].textContent
-      }else{
-        value += '\n' + children[i].textContent
-      }
-    }
+    let value = inputEl.textContent
     value = value ? replaceAllHtml(value) : ''
     return value;
   };
 
    // type: 0默认 1成功 2 失败 
-   function showLoading(documents, txt, type){
-    let box1 = document.querySelector(classnameCfg.box1)
-    let box2 = document.querySelector(classnameCfg.box2)
-    let main = null
-    if(box1 && box1.contains(documents)) {
-      main = getMainView()
+   function showLoading(txt, type){
+        clearTimeout(hideLoadTimer)
+        hideLoadTimer = null
+        let el = document.querySelector('#aitansLoading')
+        let color = type === 1 ? '#FE750A' : (type === 2 ? '#f90606' : '#000');
+        txt = txt || '正在翻译中 请勿重复敲击回车按键';
+        if(el) {
+            el.style.display = 'block'
+            el.textContent = txt
+            el.style.color = color
+        }else{
+            let main = document.querySelector('#screen-chat')
+            if(main) {
+                main.insertAdjacentHTML(
+                    'beforeend',
+                    `<span id="aitansLoading" style="font-size:14px;position:absolute;z-index:999;left:0;right: 0;padding: 5px 10px;margin: 0 auto;border-radius: 4px;text-align:center;bottom:30px;color:${color};">${txt}</span>`
+                );
+            };
+        }
     }
-    if(box2 && box2.contains(documents)) {
-      main = getMainView2()
+    function hideLoading(){
+        let el = document.querySelector('#aitansLoading')
+        if(el) el.style.display = 'none'
     }
-    clearTimeout(hideLoadTimer)
-    hideLoadTimer = null
-    let el = main.querySelector('.aitansLoading')
-    let color = type === 1 ? '#FE750A' : (type === 2 ? '#f90606' : '#000');
-    txt = txt || '正在翻译中 请勿重复敲击回车按键';
-    if(el) {
-      el.style.display = 'block'
-      el.textContent = txt
-      el.style.color = color
-    }else{
-      if(main) {
-        main.insertAdjacentHTML(
-          'beforeend',
-          `<span class="aitansLoading" style="font-size:14px;position:absolute;z-index:999;left:0;right: 0;padding: 5px 10px;margin: 0 auto;border-radius: 4px;text-align:center;bottom:0;color:${color};">${txt}</span>`
-        );
-      }
-    }
-  }
-  function hideLoading(){
-    let els = document.querySelectorAll('.aitansLoading')
-    for(var i = 0; i < els.length; i++) {
-      els[i].style.display = 'none'
-    }
-  }
 
   // AI翻译显示中文翻译
-  async function showChineseTrans(documents, msg) {
-    let box1 = document.querySelector(classnameCfg.box1)
-    let box2 = document.querySelector(classnameCfg.box2)
-    let main = null
-    if(box1 && box1.contains(documents)) {
-      main = box1.querySelector('.msg-form__msg-content-container--scrollable')
-    }
-    if(box2 && box2.contains(documents)) {
-      main = box2.querySelector('.msg-form__msg-content-container--scrollable')
-    }
+  async function showChineseTrans(msg) {
     let txt = ''
     if(msg) {
       let params = getResData(msg, true);
@@ -258,24 +189,28 @@ module.exports = (Ferdium, settings) => {
       }
     }
     txt = '中文：'+txt
-    let el = main.querySelector('.aitansChinese')
+    let el = document.querySelector('#aitansChinese')
     if(el) {
       el.style.display = 'block'
       el.innerHTML = txt
     }else{
+      let main = document.querySelector('#screen-chat')
       if(main) {
         main.insertAdjacentHTML(
-          'beforeend',
-          `<div class="aitansChinese" style="font-size:14px;padding: 5px 10px;border-radius: 4px;background: #fff;">${txt}</div>`
+            'beforeend',
+            `<div id="aitansChinese" style="position:absolute;z-index:999;bottom:0;left:24px;right: 24px;font-size:14px;padding: 5px 10px;background: #fff;">${txt}</div>`
         );
-      }
+      };
     }
   }
   function hideChineseTrans() {
-    let els = document.querySelectorAll('.aitansChinese')
-    for(var i = 0; i < els.length; i++) {
-      els[i].style.display = 'none'
-    }
+    let el = document.querySelector('#aitansChinese')
+    if(el) el.style.display = 'none'
+  }
+
+  // 判断是群聊还是私聊, true 群聊
+  function isGroup() {
+    return false
   }
 
   function listerFriendList() {
@@ -292,34 +227,10 @@ module.exports = (Ferdium, settings) => {
             }
           }, 200)
         }
-        if(getFriendView2()?.contains(e.target)) {
-          let timer = setInterval(() => {
-            let view = getMainView2();
-            if (view) {
-              addFreshEvent()
-              clearInterval(timer)
-              timer = null
-            }
-          }, 200)
-        }
-        let newsBtnEl = document.querySelector('.global-nav__primary-item:nth-child(4)')
-        if(newsBtnEl?.contains(e.target)) {
-          let timer = setInterval(() => {
-            let view = getMainView();
-            if (view) {
-              addFreshEvent()
-              clearInterval(timer)
-              timer = null
-            }
-          }, 200)
-        }
-        
-        let sendBtnEls = document.querySelectorAll(classnameCfg.sendBtn)
-        for(var i = 0; i < sendBtnEls.length; i++) {
-          if(sendBtnEls[i] && sendBtnEls[i].contains(e.target)) {
-            if(e.isTrusted) {
-              initSendEvent(e)
-            }
+        let sendBtnEl = document.querySelector('#send-button')
+        if(sendBtnEl && sendBtnEl.contains(e.target)) {
+          if(e.isTrusted) {
+            initSendEvent(e)
           }
         }
       },
@@ -327,58 +238,25 @@ module.exports = (Ferdium, settings) => {
     );
   };
 
-  function getFriendView() {
-    return document.querySelector(classnameCfg.friendList);
-  };
-  function getFriendView2() {
-    return document.querySelector(classnameCfg.friendList2);
-  };
-  function isGroup() {
-    return false
-  }
   function getMainView() {
     return document.querySelector(classnameCfg.main);
-  };
-  function getMainView2() {
-    return document.querySelector(classnameCfg.main2);
   };
   function addFreshEvent() {
     let view = getMainView();
     if (view) {
-      freshChatList(1);
-      view.removeEventListener('DOMNodeInserted', ()=> {
-        freshChatList(1)
-      });
-      view.addEventListener('DOMNodeInserted', ()=> {
-        freshChatList(1)
-      }, true);
-    }
-    let view2 = getMainView2();
-    if (view2) {
-      freshChatList(2);
-      view2.removeEventListener('DOMNodeInserted', ()=> {
-        freshChatList(2)
-      });
-      view2.addEventListener('DOMNodeInserted', ()=> {
-        freshChatList(2)
-      }, true);
+      freshChatList();
+      view.removeEventListener('DOMNodeInserted', freshChatList);
+      view.addEventListener('DOMNodeInserted', freshChatList, true);
     }
   };
-  function freshChatList(type) {
-    let msgList = []
-    let view = getMainView();
-    let view2 = getMainView2();
-    if(type === 1) {
-      msgList = view ? view.querySelectorAll(classnameCfg.allMsg) : []
-    }else{
-      msgList = view2 ? view2.querySelectorAll(classnameCfg.allMsg) : []
-    }
-    let myName = document.querySelector('#thread-detail-jump-target')?.textContent?.trim()
-    for (const msgDiv of msgList) {
+  function freshChatList() {
+    let msgList1 = document.querySelectorAll(classnameCfg.allMsg);
+    let msgList2 = document.querySelectorAll(classnameCfg.allMsg2);
+    for (const msgDiv of msgList1) {
       const msg = msgDiv.textContent;
       const check = !msgDiv.parentNode.querySelector('.autofanyi') && !msgDiv.parentNode.querySelector('.click-fanyi');
-      if(check && msg) {
-        let isOwn = msgDiv.parentNode.parentNode.parentNode.parentNode.querySelector('.msg-s-message-group__name')?.textContent?.trim() !== myName;
+      if(check) {
+        let isOwn = false;
         if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
           // 如果是群聊则跟进群聊开关判断
           if((isGroup() && oneworld.settingCfg.groupflag) || !isGroup()) {
@@ -398,14 +276,31 @@ module.exports = (Ferdium, settings) => {
         }
       }
     }
+    for (const msgDiv of msgList2) {
+        const msg = msgDiv.textContent;
+        const check = !msgDiv.parentNode.querySelector('.autofanyi') && !msgDiv.parentNode.querySelector('.click-fanyi');
+        if(check) {
+          let isOwn = true;
+          if ((oneworld.settingCfg.sendtranslation && !isOwn) || (oneworld.settingCfg.tranflag && isOwn)) {
+            // 如果是群聊则跟进群聊开关判断
+            if((isGroup() && oneworld.settingCfg.groupflag) || !isGroup()) {
+              insterDiv(msgDiv, 'autofanyi', '翻译中...', isOwn);
+              autoFanyi(msg, msgDiv, isOwn);
+            }else{
+              insterDiv(msgDiv, 'click-fanyi', '点击翻译', isOwn);
+              msgDiv.parentNode
+                .querySelector('.click-fanyi')
+                .addEventListener('click', e => clickFanyi(e, isOwn, msg));
+            }
+          } else {
+              insterDiv(msgDiv, 'click-fanyi', '点击翻译', isOwn);
+              msgDiv.parentNode
+                .querySelector('.click-fanyi')
+                .addEventListener('click', e => clickFanyi(e, isOwn, msg));
+          }
+        }
+      }
     setPlaceholderTxt()
-  };
-
-  function insterDiv(parent, className, msg) {
-    parent.insertAdjacentHTML(
-      'afterEnd',
-      `<div class="${className}" style="margin-left: calc(40px + 0.8rem + 0.8rem);margin-right:28px;font-size:${oneworld.settingCfg.fontsize}px;color:${oneworld.settingCfg.fontcolor};background: #f3f2ef;display: inline-block;padding:5px">${msg}</div>`,
-    );
   };
 
   async function autoFanyi(msg, msgDiv, isOwn) {
@@ -450,6 +345,16 @@ module.exports = (Ferdium, settings) => {
     div.removeEventListener('click', clickFanyi);
   };
 
+  function getFriendView() {
+    return document.querySelector(classnameCfg.friendList);
+  };
+  function insterDiv(parent, className, msg) {
+        parent.insertAdjacentHTML(
+        'beforeend',
+        `<div class="${className}" style="font-size:${oneworld.settingCfg.fontsize}px;color:${oneworld.settingCfg.fontcolor};">${msg}</div>`,
+        );
+  };
+
   function getEventTarget(e) {
     e = window.event || e;
     return e.srcElement || e.target;
@@ -481,22 +386,21 @@ module.exports = (Ferdium, settings) => {
   };
 
   function setPlaceholderTxt() {
-    let els = document.querySelectorAll(classnameCfg.ipt)
-    if(!els.length) {
+    let view = getMainView();
+    if(!view) {
+      return
+    }
+    let el = document.querySelector(classnameCfg.ipt)
+    if(!el) {
       return
     }
     const {type, sto, tranflag, groupflag} = oneworld.settingCfg
-    let transType = settings.packageCfg?.[type] || ''
-    let language = settings.tranCfg?.[type]?.[sto] || ''
-    for(var i = 0; i < els.length; i++) {
-      let placeholderEl = els[i].parentNode.querySelector('.msg-form__placeholder')
-      if(placeholderEl) {
-        if (!tranflag || (isGroup() && !groupflag)) {
-          placeholderEl.setAttribute('data-placeholder', '消息不翻译发送')
-        }else{
-          placeholderEl.setAttribute('data-placeholder', '消息通过['+transType+']翻译成['+language+']发送')
-        }
-      }
+    if (!tranflag || (isGroup() && !groupflag)) {
+        el.setAttribute('placeholder', '消息不翻译发送')
+    }else{
+      let transType = settings.packageCfg?.[type] || ''
+      let language = settings.tranCfg?.[type]?.[sto] || ''
+      el.setAttribute('placeholder', '消息通过['+transType+']翻译成['+language+']发送')
     }
   }
 
