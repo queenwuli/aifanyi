@@ -1,0 +1,9 @@
+{
+  "id": "snapchat",
+  "name": "Snapchat",
+  "version": "1.0.1",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://accounts.snapchat.com/"
+  }
+}
