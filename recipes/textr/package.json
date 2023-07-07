@@ -1,0 +1,9 @@
+{
+  "id": "textr",
+  "name": "Textr",
+  "version": "1.0.1",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://team.textrapp.com/"
+  }
+}
