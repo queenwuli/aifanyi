@@ -1,0 +1,12 @@
+{
+  "id": "whatsappb",
+  "name": "WhatsApp群发版",
+  "version": "1.0.1",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://web.whatsapp.com",
+    "hasNotificationSound": true,
+    "hasIndirectMessages": true,
+    "disablewebsecurity": true
+  }
+}

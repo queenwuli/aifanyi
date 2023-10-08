@@ -1,0 +1,9 @@
+{
+  "id": "facebookfans",
+  "name": "Facebook粉丝专页",
+  "version": "1.0.1",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://business.facebook.com/latest"
+  }
+}
