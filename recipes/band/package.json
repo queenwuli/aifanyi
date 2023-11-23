@@ -1,0 +1,9 @@
+{
+  "id": "band",
+  "name": "BAND",
+  "version": "1.0.1",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://band.us/"
+  }
+}
