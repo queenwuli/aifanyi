@@ -1,1 +1,0 @@
-rd /s /q  %appdata%\爱翻译Dev\recipes\
